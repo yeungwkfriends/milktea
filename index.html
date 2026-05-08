@@ -1,33 +1,109 @@
-const BACKEND_URL = "https://milkteaback.vercel.app/api/chat";
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f8fafc; }
+        .chat-box { height: 70vh; }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-async function sendMessage() {
-    const text = input.value.trim();
-    if (!text) return;
+    <div class="w-full max-w-2xl glass shadow-2xl rounded-3xl overflow-hidden border border-slate-200">
+        <div class="bg-black p-6 text-white flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold">AI 學術助手</h1>
+                <p class="text-xs text-slate-400">Powered by Grok 3 Mini</p>
+            </div>
+            <div class="h-3 w-3 bg-emerald-500 rounded-full animate-pulse"></div>
+        </div>
 
-    appendMessage('user', text);
-    input.value = "";
-    setLoading(true);
-    
-    try {
-        const response = await fetch(BACKEND_URL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json' 
-            },
-            body: JSON.stringify({ message: text }) // Make sure this is "message"
-        });
-        
-        const data = await response.json();
-        
-        if (data.text) {
-            appendMessage('bot', data.text);
-        } else {
-            throw new Error(data.error || "No response");
+        <div id="chat-window" class="chat-box overflow-y-auto p-6 flex flex-col gap-4">
+            <div class="bg-slate-100 text-slate-800 self-start p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm">
+                你好！我係你嘅 AI 助手。今日有咩可以幫到你？
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-100 bg-white">
+            <div class="flex gap-2">
+                <input type="text" id="user-input" placeholder="輸入訊息..." 
+                    class="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-black transition-all">
+                <button onclick="sendMessage()" id="send-btn" 
+                    class="bg-black text-white px-6 py-2 rounded-xl hover:bg-slate-800 active:scale-95 transition-all">
+                    發送
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // THIS IS YOUR SECURE BRIDGE
+        // Your API Key and System Prompt are hidden inside this link on Vercel
+        const BACKEND_URL = "https://milkteaback.vercel.app/api/chat";
+
+        const chatWindow = document.getElementById('chat-window');
+        const input = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        async function sendMessage() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 1. Show User Message
+            appendMessage('user', text);
+            input.value = "";
+            setLoading(true);
+            
+            try {
+                // 2. Call your Private Backend
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                
+                const data = await response.json();
+                
+                if (data.text) {
+                    // 3. Show AI Response (It will be in Cantonese!)
+                    appendMessage('bot', data.text);
+                } else {
+                    throw new Error(data.error || "No response");
+                }
+            } catch (e) {
+                console.error("Error:", e);
+                appendMessage('bot', "對唔住，連接伺服器出咗問題。請稍後再試。");
+            } finally {
+                setLoading(false);
+            }
         }
-    } catch (e) {
-        console.error("Connection Error:", e);
-        appendMessage('bot', "Connection failed. Please check the Vercel URL.");
-    } finally {
-        setLoading(false);
-    }
-}
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            if (role === 'user') {
+                msgDiv.className = "bg-black text-white self-end p-3 rounded-2xl rounded-tr-none max-w-[80%] text-sm shadow-md";
+            } else {
+                msgDiv.className = "bg-slate-100 text-slate-800 self-start p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm border border-slate-200";
+            }
+            msgDiv.innerText = text;
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+        }
+
+        function setLoading(isLoading) {
+            input.disabled = isLoading;
+            sendBtn.disabled = isLoading;
+            sendBtn.innerText = isLoading ? "..." : "發送";
+        }
+
+        // Allow "Enter" key to send
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
