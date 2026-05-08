@@ -4,58 +4,71 @@ const fetch = require('node-fetch');
 
 const app = express();
 
-// Standard middleware
-// CORS is set to allow all origins by default for easier testing, 
-// but you can restrict it to your github.io domain later.
-app.use(cors()); 
+// Enhanced CORS configuration
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // CONFIGURATION
-// These will be set in the Vercel Dashboard Environment Variables
+// Ensure you set GROK_API_KEY in your Vercel Environment Variables
 const API_KEY = process.env.GROK_API_KEY; 
-const SYSTEM_PROMPT = "You speak Cantonese.";
+const SYSTEM_PROMPT = "You speak cantonese.";
 
-// Root route to check if server is alive
+// Root route - Use this to test if your Vercel link is active!
 app.get('/', (req, res) => {
-    res.send("Chat Server is Running!");
+    res.status(200).json({ status: "online", message: "Grok 3 Mini Chat Server is Running!" });
 });
 
 // The main chat endpoint
 app.post('/api/chat', async (req, res) => {
+    console.log("Received chat request for Grok 3 Mini");
+
     const { message } = req.body;
 
-    // Safety check for the message
     if (!message) {
         return res.status(400).json({ error: "Message content is required" });
     }
 
     if (!API_KEY) {
-        console.error("Missing GEMINI_API_KEY in environment variables");
-        return res.status(500).json({ error: "API Key not configured on server" });
+        console.error("CRITICAL ERROR: GROK_API_KEY is not defined in Vercel Environment Variables");
+        return res.status(500).json({ error: "Server Configuration Error: API Key missing" });
     }
 
-    // Using the 2.0-flash model for high performance and low latency
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`;
+    // X.ai (Grok) uses an OpenAI-compatible API structure
+    const url = "https://api.x.ai/v1/chat/completions";
     
     const payload = {
-        contents: [{ parts: [{ text: message }] }],
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }
+        model: "grok-3-mini", 
+        messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: message }
+        ],
+        stream: false
     };
 
     try {
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`
+            },
             body: JSON.stringify(payload)
         });
         
         const data = await response.json();
         
         if (data.error) {
-            throw new Error(data.error.message);
+            console.error("Grok API Error:", data.error);
+            throw new Error(data.error.message || "Error from Grok API");
         }
 
-        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        // Extracting text from the OpenAI-style response format
+        const aiResponse = data.choices?.[0]?.message?.content;
         
         if (!aiResponse) {
             throw new Error("Empty response from AI service");
@@ -63,8 +76,8 @@ app.post('/api/chat', async (req, res) => {
 
         res.json({ text: aiResponse });
     } catch (error) {
-        console.error("Chat API Error:", error.message);
-        res.status(500).json({ error: error.message || "Failed to connect to AI" });
+        console.error("Internal Server Error:", error.message);
+        res.status(500).json({ error: "The AI is currently unavailable. Please try again." });
     }
 });
 
